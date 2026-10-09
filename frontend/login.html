@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Tasks — 3D Cloud Auth Portal</title>
+    <meta name="description" content="Innovative 3D Cloud Authentication Portal powered by AWS Cognito and WebGL.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --bg-base: #06090e;
+            --primary: #00f2fe;
+            --primary-glow: rgba(0, 242, 254, 0.45);
+            --accent-purple: #7928ca;
+            --accent-pink: #ff0080;
+            --accent-emerald: #00f2a9;
+            --surface: rgba(13, 20, 32, 0.65);
+            --surface-border: rgba(255, 255, 255, 0.12);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --text-subtle: #64748b;
+            --font-display: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-base);
+            font-family: var(--font-body);
+            color: var(--text-main);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Fullscreen WebGL 3D Canvas */
+        #webgl-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Ambient Glow Blobs */
+        .ambient-glow {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(120px);
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.5;
+            animation: pulseGlow 12s ease-in-out infinite alternate;
+        }
+
+        .glow-1 {
+            top: -10%;
+            left: -5%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, #00f2fe33, #7928ca22);
+        }
+
+        .glow-2 {
+            bottom: -15%;
+            right: -5%;
+            width: 550px;
+            height: 550px;
+            background: radial-gradient(circle, #ff00802b, #7928ca26);
+        }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1) translate(0, 0); opacity: 0.4; }
+            50% { transform: scale(1.15) translate(20px, -20px); opacity: 0.6; }
+            100% { transform: scale(0.95) translate(-15px, 25px); opacity: 0.45; }
+        }
+
+        /* 3D Scene Wrapper */
+        .scene-container {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 480px;
+            padding: 24px;
+            perspective: 1200px;
+        }
+
+        /* 3D Tilt Card */
+        .auth-card-3d {
+            position: relative;
+            background: var(--surface);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid var(--surface-border);
+            border-radius: 24px;
+            padding: 44px 38px;
+            box-shadow: 
+                0 30px 60px -15px rgba(0, 0, 0, 0.7),
+                0 0 40px -10px rgba(0, 242, 254, 0.15),
+                inset 0 1px 1px rgba(255, 255, 255, 0.2);
+            transform-style: preserve-3d;
+            transition: transform 0.15s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.3s ease;
+            overflow: hidden;
+        }
+
+        /* Dynamic Specular Glare Reflection */
+        .card-glare {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            border-radius: 24px;
+            background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.15) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            mix-blend-mode: overlay;
+        }
+
+        /* Holographic Brand Mark */
+        .brand-header {
+            text-align: center;
+            margin-bottom: 32px;
+            transform: translateZ(30px);
+        }
+
+        .hologram-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(0, 242, 254, 0.08);
+            border: 1px solid rgba(0, 242, 254, 0.25);
+            border-radius: 30px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: var(--primary);
+            letter-spacing: 0.05em;
+            margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent-emerald);
+            box-shadow: 0 0 10px var(--accent-emerald);
+            animation: blink 2s infinite ease-in-out;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        .brand-icon-wrap {
+            width: 68px;
+            height: 68px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(121, 40, 202, 0.3));
+            border: 1px solid rgba(0, 242, 254, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 12px 25px -5px rgba(0, 242, 254, 0.35);
+            transform: translateZ(40px);
+            position: relative;
+        }
+
+        .brand-icon-wrap svg {
+            width: 36px;
+            height: 36px;
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 8px var(--primary-glow));
+        }
+
+        .brand-title {
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 28px;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #ffffff 40%, #a5b4fc 80%, #00f2fe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+
+        .brand-subtitle {
+            font-size: 14px;
+            color: var(--text-dim);
+            font-weight: 400;
+        }
+
+        /* Action Buttons */
+        .action-group {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-bottom: 26px;
+            transform: translateZ(35px);
+        }
+
+        .btn-3d {
+            position: relative;
+            width: 100%;
+            padding: 16px 24px;
+            border: none;
+            border-radius: 14px;
+            font-family: var(--font-display);
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            text-decoration: none;
+            overflow: hidden;
+        }
+
+        .btn-cognito {
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #7928ca 100%);
+            background-size: 200% 200%;
+            color: #040814;
+            box-shadow: 
+                0 10px 25px -5px rgba(0, 242, 254, 0.45),
+                0 0 15px rgba(121, 40, 202, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .btn-cognito:hover {
+            background-position: right center;
+            transform: translateY(-2px);
+            box-shadow: 
+                0 15px 35px -5px rgba(0, 242, 254, 0.65),
+                0 0 25px rgba(121, 40, 202, 0.45);
+        }
+
+        .btn-cognito:active {
+            transform: translateY(1px);
+        }
+
+        
+        .btn-logout {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #fca5a5;
+        }
+
+        .btn-logout:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.45);
+        }
+
+        /* Features Matrix */
+        .security-matrix {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            transform: translateZ(25px);
+        }
+
+        .matrix-item {
+            text-align: center;
+            padding: 8px 4px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .matrix-val {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 2px;
+        }
+
+        .matrix-label {
+            font-size: 10px;
+            color: var(--text-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Error Notification */
+        .error-banner {
+            margin-top: 18px;
+            padding: 12px 16px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 10px;
+            font-size: 13px;
+            color: #fca5a5;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            transform: translateZ(30px);
+        }
+
+        /* 3D Floating Cyber Particles in HUD */
+        .corner-deco {
+            position: absolute;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-subtle);
+            letter-spacing: 0.1em;
+            pointer-events: none;
+        }
+        .top-left-deco { top: 16px; left: 20px; }
+        .bottom-right-deco { bottom: 16px; right: 20px; }
+
+        @media (max-width: 480px) {
+            .auth-card-3d {
+                padding: 34px 22px;
+            }
+            .brand-title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Three.js WebGL Scene -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Ambient Glowing Nebulas -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <!-- Interactive 3D Card Scene -->
+    <div class="scene-container" id="sceneContainer">
+        <div class="auth-card-3d" id="authCard">
+            <div class="card-glare" id="cardGlare"></div>
+            
+            <div class="corner-deco top-left-deco">SYS_AUTH // v3.0</div>
+            <div class="corner-deco bottom-right-deco">REGION // EU-NORTH-1</div>
+
+            <div class="brand-header">
+                <div class="hologram-badge">
+                    <span class="status-dot"></span>
+                    <span>AWS COGNITO AUTHENTICATED</span>
+                </div>
+
+                <div class="brand-icon-wrap">
+                    <svg viewBox="0 0 24 24">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                </div>
+
+                <h1 class="brand-title">Quantum Tasks</h1>
+                <p class="brand-subtitle">High-performance 3D Cloud Workspace</p>
+            </div>
+
+            <div class="action-group">
+                <button class="btn-3d btn-cognito" id="loginBtn" onclick="loginWithCognito()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                        <polyline points="10 17 15 12 10 7"></polyline>
+                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                    </svg>
+                    Continue with AWS Cognito
+                </button>
+                <button class="btn-3d btn-logout" id="logoutBtn" onclick="logout()" style="display: none;">
+                    Clear Session & Logout
+                </button>
+            </div>
+
+            <div id="errorMessage" class="error-banner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span id="errorText">Authentication session expired or failed.</span>
+            </div>
+
+            <div class="security-matrix">
+                <div class="matrix-item">
+                    <div class="matrix-val">OIDC / JWT</div>
+                    <div class="matrix-label">Protocol</div>
+                </div>
+                <div class="matrix-item">
+                    <div class="matrix-val">AES-256</div>
+                    <div class="matrix-label">Encryption</div>
+                </div>
+                <div class="matrix-item">
+                    <div class="matrix-val">Serverless</div>
+                    <div class="matrix-label">Backend</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D WebGL Three.js Scene Script -->
+    <script>
+        // -------------------------------------------------------------
+        // THREE.JS 3D WEBGL HOLOGRAPHIC QUANTUM SCENE
+        // -------------------------------------------------------------
+        let scene, camera, renderer;
+        let torusKnot, outerRing, innerCore, particleField;
+        let mouseX = 0, mouseY = 0;
+        let targetX = 0, targetY = 0;
+
+        function initThreeJS() {
+            const canvas = document.getElementById('webgl-canvas');
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 24;
+
+            renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Holographic Torus Knot
+            const knotGeo = new THREE.TorusKnotGeometry(4.2, 1.1, 128, 32, 2, 3);
+            const knotMat = new THREE.MeshPhysicalMaterial({
+                color: 0x00f2fe,
+                emissive: 0x0c2540,
+                roughness: 0.15,
+                metalness: 0.85,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.45
+            });
+            torusKnot = new THREE.Mesh(knotGeo, knotMat);
+            scene.add(torusKnot);
+
+            // Glowing Inner Sphere / Energy Core
+            const coreGeo = new THREE.IcosahedronGeometry(2.4, 2);
+            const coreMat = new THREE.MeshStandardMaterial({
+                color: 0x7928ca,
+                emissive: 0x9333ea,
+                emissiveIntensity: 0.8,
+                roughness: 0.2,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.7
+            });
+            innerCore = new THREE.Mesh(coreGeo, coreMat);
+            scene.add(innerCore);
+
+            // Outer Orbiting Cyber Ring
+            const ringGeo = new THREE.TorusGeometry(8.5, 0.08, 16, 100);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0x00f2a9,
+                transparent: true,
+                opacity: 0.5
+            });
+            outerRing = new THREE.Mesh(ringGeo, ringMat);
+            outerRing.rotation.x = Math.PI / 3;
+            scene.add(outerRing);
+
+            // Particle Starfield / Cyber Dust
+            const particleCount = 700;
+            const particleGeo = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+
+            const color1 = new THREE.Color(0x00f2fe);
+            const color2 = new THREE.Color(0x7928ca);
+            const color3 = new THREE.Color(0x00f2a9);
+
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 60;
+                positions[i + 1] = (Math.random() - 0.5) * 60;
+                positions[i + 2] = (Math.random() - 0.5) * 60;
+
+                const choice = Math.random();
+                const pickedColor = choice < 0.4 ? color1 : (choice < 0.7 ? color2 : color3);
+                colors[i] = pickedColor.r;
+                colors[i + 1] = pickedColor.g;
+                colors[i + 2] = pickedColor.b;
+            }
+
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const particleMat = new THREE.PointsMaterial({
+                size: 0.18,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.85
+            });
+
+            particleField = new THREE.Points(particleGeo, particleMat);
+            scene.add(particleField);
+
+            // Dynamic Point Lights
+            const cyanLight = new THREE.PointLight(0x00f2fe, 3, 40);
+            cyanLight.position.set(10, 10, 10);
+            scene.add(cyanLight);
+
+            const purpleLight = new THREE.PointLight(0xff0080, 2.5, 40);
+            purpleLight.position.set(-10, -10, 10);
+            scene.add(purpleLight);
+
+            const ambientLight = new THREE.AmbientLight(0x10172a, 1.5);
+            scene.add(ambientLight);
+
+            // Responsive Window Resize
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('mousemove', onMouseMove);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onMouseMove(e) {
+            mouseX = (e.clientX - window.innerWidth / 2) * 0.001;
+            mouseY = (e.clientY - window.innerHeight / 2) * 0.001;
+        }
+
+        function animateThreeJS() {
+            requestAnimationFrame(animateThreeJS);
+
+            targetX += (mouseX - targetX) * 0.05;
+            targetY += (mouseY - targetY) * 0.05;
+
+            if (torusKnot) {
+                torusKnot.rotation.x += 0.005;
+                torusKnot.rotation.y += 0.008;
+                torusKnot.rotation.z += 0.002;
+            }
+
+            if (innerCore) {
+                innerCore.rotation.x -= 0.008;
+                innerCore.rotation.y -= 0.01;
+            }
+
+            if (outerRing) {
+                outerRing.rotation.z += 0.004;
+                outerRing.rotation.y += 0.003;
+            }
+
+            if (particleField) {
+                particleField.rotation.y += 0.0008;
+                particleField.rotation.x += 0.0004;
+            }
+
+            camera.position.x = targetX * 12;
+            camera.position.y = -targetY * 12;
+            camera.lookAt(scene.position);
+
+            renderer.render(scene, camera);
+        }
+
+        // -------------------------------------------------------------
+        // INTERACTIVE 3D CARD PARALLAX TILT & SPECULAR GLARE
+        // -------------------------------------------------------------
+        const card = document.getElementById('authCard');
+        const glare = document.getElementById('cardGlare');
+
+        document.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const cardCenterX = rect.left + rect.width / 2;
+            const cardCenterY = rect.top + rect.height / 2;
+
+            const diffX = (e.clientX - cardCenterX) / (window.innerWidth / 2);
+            const diffY = (e.clientY - cardCenterY) / (window.innerHeight / 2);
+
+            const rotateY = diffX * 14;
+            const rotateX = -diffY * 14;
+
+            card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(10px)`;
+
+            // Glare position calculation
+            const glareX = ((e.clientX - rect.left) / rect.width) * 100;
+            const glareY = ((e.clientY - rect.top) / rect.height) * 100;
+            glare.style.background = `radial-gradient(circle at ${glareX}% ${glareY}%, rgba(255, 255, 255, 0.22) 0%, transparent 60%)`;
+            glare.style.opacity = '1';
+        });
+
+        document.addEventListener('mouseleave', () => {
+            card.style.transform = 'rotateX(0deg) rotateY(0deg) translateZ(0px)';
+            glare.style.opacity = '0';
+        });
+
+        // -------------------------------------------------------------
+        // AWS COGNITO CONFIGURATION & AUTH HANDLERS
+        // -------------------------------------------------------------
+        const COGNITO_DOMAIN = "https://eu-north-1ymhts8c0a.auth.eu-north-1.amazoncognito.com";
+        const CLIENT_ID = "3oschndomlhbrhui9836o234m0";
+        const REDIRECT_URI = window.location.origin + "/index.html";
+        const LOGOUT_URI = window.location.origin + "/login.html";
+
+        function loginWithCognito() {
+            const scope = encodeURIComponent("email openid phone");
+            const redirect = encodeURIComponent(REDIRECT_URI);
+            const loginURL = `${COGNITO_DOMAIN}/login?client_id=${CLIENT_ID}&response_type=code&scope=${scope}&redirect_uri=${redirect}`;
+            window.location.href = loginURL;
+        }
+
+        function enterDemoMode() {
+            // Setup demo token for instant sandbox testing
+            localStorage.setItem("demo_mode", "true");
+            localStorage.setItem("id_token", "demo-token-" + Date.now());
+            window.location.href = "https://staging.d1bjda1dek1tr1.amplifyapp.com";
+        }
+
+        function checkLogin() {
+            const accessToken = localStorage.getItem("access_token");
+            const idToken = localStorage.getItem("id_token");
+            const isDemo = localStorage.getItem("demo_mode");
+
+            if ((accessToken && idToken) || isDemo) {
+                const logoutBtn = document.getElementById("logoutBtn");
+                if (logoutBtn) logoutBtn.style.display = "flex";
+            }
+        }
+
+        function handleCognitoResponse() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) return;
+
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get("access_token");
+            const idToken = params.get("id_token");
+            const expiresIn = params.get("expires_in");
+            const tokenType = params.get("token_type");
+            const error = params.get("error_description") || params.get("error");
+
+            if (error) {
+                const errBox = document.getElementById("errorMessage");
+                const errText = document.getElementById("errorText");
+                if (errBox && errText) {
+                    errText.textContent = decodeURIComponent(error);
+                    errBox.style.display = "flex";
+                }
+                return;
+            }
+
+            if (accessToken && idToken) {
+                localStorage.setItem("access_token", accessToken);
+                localStorage.setItem("id_token", idToken);
+                if (expiresIn) localStorage.setItem("expires_in", expiresIn);
+                if (tokenType) localStorage.setItem("token_type", tokenType);
+                localStorage.removeItem("demo_mode");
+
+                window.history.replaceState({}, document.title, window.location.pathname);
+                window.location.href = "index.html";
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            const logoutURL = `${COGNITO_DOMAIN}/logout?client_id=${encodeURIComponent(CLIENT_ID)}&logout_uri=${encodeURIComponent(LOGOUT_URI)}`;
+            window.location.href = logoutURL;
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            initThreeJS();
+            animateThreeJS();
+            handleCognitoResponse();
+            checkLogin();
+        });
+    </script>
+</body>
+</html>
